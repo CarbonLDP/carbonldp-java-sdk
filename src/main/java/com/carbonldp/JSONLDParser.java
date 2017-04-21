@@ -8,6 +8,7 @@ import org.eclipse.rdf4j.model.impl.AbstractModel;
 import org.eclipse.rdf4j.model.impl.LinkedHashModel;
 import org.eclipse.rdf4j.rio.*;
 import org.eclipse.rdf4j.rio.helpers.StatementCollector;
+import org.eclipse.rdf4j.rio.jsonld.JSONLDParserFactory;
 import org.springframework.http.converter.HttpMessageNotWritableException;
 
 import java.io.ByteArrayOutputStream;
@@ -19,6 +20,14 @@ import java.util.function.Function;
  * @author MiguelAraCo
  */
 public class JSONLDParser implements Function<Response, HTTPResult<AbstractModel>> {
+	public JSONLDParser() {
+		// Sometimes the class loader doesn't register the JSONLDParserFactory, this forces it
+		// TODO: Find out why and remove this
+		if ( ! RDFParserRegistry.getInstance().has( RDFFormat.JSONLD ) ) {
+			RDFParserRegistry.getInstance().add( new JSONLDParserFactory() );
+		}
+	}
+
 	public static void write( BoundRequestBuilder request, AbstractModel model ) {
 		AsyncHTTPUtils.setContentTypeHeader( request );
 
