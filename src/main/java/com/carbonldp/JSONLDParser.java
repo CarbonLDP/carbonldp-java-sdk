@@ -9,6 +9,7 @@ import org.eclipse.rdf4j.model.impl.LinkedHashModel;
 import org.eclipse.rdf4j.rio.*;
 import org.eclipse.rdf4j.rio.helpers.StatementCollector;
 import org.eclipse.rdf4j.rio.jsonld.JSONLDParserFactory;
+import org.eclipse.rdf4j.rio.jsonld.JSONLDWriterFactory;
 import org.springframework.http.converter.HttpMessageNotWritableException;
 
 import java.io.ByteArrayOutputStream;
@@ -25,6 +26,9 @@ public class JSONLDParser implements Function<Response, HTTPResult<AbstractModel
 		// TODO: Find out why and remove this
 		if ( ! RDFParserRegistry.getInstance().has( RDFFormat.JSONLD ) ) {
 			RDFParserRegistry.getInstance().add( new JSONLDParserFactory() );
+		}
+		if ( ! RDFWriterRegistry.getInstance().has( RDFFormat.JSONLD ) ) {
+			RDFWriterRegistry.getInstance().add( new JSONLDWriterFactory() );
 		}
 	}
 
