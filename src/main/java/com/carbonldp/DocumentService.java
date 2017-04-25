@@ -30,7 +30,7 @@ public class DocumentService {
 	}
 
 	public CompletableFuture<PersistedDocument> get( IRI documentIRI ) {
-		BoundRequestBuilder request = httpClient.prepareGet( documentIRI.toString() );
+		BoundRequestBuilder request = this.httpClient.prepareGet( documentIRI.toString() );
 
 		AsyncHTTPUtils.setAcceptHeader( request );
 		AsyncHTTPUtils.setInteractionModel( request, APIPreferences.InteractionModel.RDF_SOURCE );
@@ -70,8 +70,12 @@ public class DocumentService {
 		return createChild( parentDocument.getIRI(), childDocument );
 	}
 
+	public CompletableFuture<IRI> createChild( String parentDocument, Document childDocument ) {
+		return createChild( this.context.resolve( parentDocument ), childDocument );
+	}
+
 	public CompletableFuture<IRI> createChild( IRI parentDocument, Document childDocument ) {
-		BoundRequestBuilder request = httpClient.preparePost( parentDocument.toString() );
+		BoundRequestBuilder request = this.httpClient.preparePost( parentDocument.toString() );
 
 		AsyncHTTPUtils.setAcceptHeader( request );
 		AsyncHTTPUtils.setInteractionModel( request, APIPreferences.InteractionModel.CONTAINER );
@@ -101,7 +105,7 @@ public class DocumentService {
 	}
 
 	public CompletableFuture<Void> save( PersistedDocument document ) {
-		BoundRequestBuilder request = httpClient.preparePut( document.getIRI().toString() );
+		BoundRequestBuilder request = this.httpClient.preparePut( document.getIRI().toString() );
 
 		AsyncHTTPUtils.setAcceptHeader( request );
 		AsyncHTTPUtils.setInteractionModel( request, APIPreferences.InteractionModel.RDF_SOURCE );
@@ -138,7 +142,7 @@ public class DocumentService {
 	}
 
 	public CompletableFuture<Void> delete( IRI documentIRI ) {
-		BoundRequestBuilder request = httpClient.prepareDelete( documentIRI.toString() );
+		BoundRequestBuilder request = this.httpClient.prepareDelete( documentIRI.toString() );
 
 		AsyncHTTPUtils.setInteractionModel( request, APIPreferences.InteractionModel.RDF_SOURCE );
 
