@@ -2,15 +2,22 @@ package com.carbonldp;
 
 import com.carbonldp.descriptions.APIPreferences;
 import com.carbonldp.exceptions.BadResponseException;
+import com.carbonldp.exceptions.PreconditionFailedException;
+import com.carbonldp.ldp.containers.MembersActionDescription;
 import com.carbonldp.model.PersistedDocument;
 import com.carbonldp.models.Document;
+import com.carbonldp.models.Fragment;
+import com.carbonldp.rdf.EmptyIRI;
 import com.carbonldp.utils.AsyncHTTPUtils;
 import org.asynchttpclient.AsyncHttpClient;
 import org.asynchttpclient.BoundRequestBuilder;
 import org.asynchttpclient.DefaultAsyncHttpClient;
 import org.eclipse.rdf4j.model.IRI;
+import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
 import org.springframework.http.HttpStatus;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
@@ -66,19 +73,78 @@ public class DocumentService {
 			} );
 	}
 
+	public CompletableFuture<Void> addMember( IRI document, IRI member ) {
+		return addMembers( document, Arrays.asList( member ) );
+	}
+
+	public CompletableFuture<Void> addMembers( IRI document, Collection<IRI> members ) {
+		Document addActionDocument = new Document( new EmptyIRI() );
+
+		Fragment addAction = new Fragment( SimpleValueFactory.getInstance().createBNode(), addActionDocument );
+		addAction.addType( MembersActionDescription.Resource.ADD.getIRI() );
+		addAction.add( MembersActionDescription.Property.TARGET_MEMBER.getIRI(), members );
+
+		BoundRequestBuilder request = this.httpClient.preparePut( document.toString() );
+
+		AsyncHTTPUtils.setContentTypeHeader( request );
+		AsyncHTTPUtils.setAcceptHeader( request );
+		AsyncHTTPUtils.setInteractionModel( request, APIPreferences.InteractionModel.CONTAINER );
+
+		if ( this.context.getAuthService().isAuthenticated() ) this.context.getAuthService().addAuthenticationHeaders( request );
+
+		// TODO: Use DocumentParser instead of using BaseModel
+		JSONLDParser.write( request, addActionDocument.getBaseModel() );
+
+		// TODO: Abstract response handling
+		return request
+			.execute().toCompletableFuture()
+			.thenApply( response -> {
+				switch ( HttpStatus.valueOf( response.getStatusCode() ) ) {
+					case OK:
+					case NO_CONTENT:
+						return null;
+					default:
+						// TODO
+						throw new RuntimeException( "Status code: '" + response.getStatusCode() + "', was not expected" );
+				}
+			} );
+	}
+
 	public CompletableFuture<IRI> createChild( Document parentDocument, Document childDocument ) {
-		return createChild( parentDocument.getIRI(), childDocument );
+		return createChild( parentDocument, childDocument, null );
+	}
+
+	public CompletableFuture<IRI> createChild( Document parentDocument, Document childDocument, String slug ) {
+		return createChild( parentDocument.getIRI(), childDocument, slug );
 	}
 
 	public CompletableFuture<IRI> createChild( String parentDocument, Document childDocument ) {
-		return createChild( this.context.resolve( parentDocument ), childDocument );
+		return createChild( parentDocument, childDocument, null );
+	}
+
+	public CompletableFuture<IRI> createChild( String parentDocument, Document childDocument, String slug ) {
+		return createChild( this.context.resolve( parentDocument ), childDocument, slug );
 	}
 
 	public CompletableFuture<IRI> createChild( IRI parentDocument, Document childDocument ) {
+		return createChild( parentDocument, childDocument, null );
+	}
+
+	public CompletableFuture<IRI> createChild( IRI parentDocument, Document childDocument, String slug ) {
+		return createDocument( parentDocument, childDocument, slug, APIPreferences.InteractionModel.CONTAINER );
+	}
+
+	public CompletableFuture<IRI> createAccessPoint( IRI parentDocument, Document childDocument, String slug ) {
+		return createDocument( parentDocument, childDocument, slug, APIPreferences.InteractionModel.RDF_SOURCE );
+	}
+
+	private CompletableFuture<IRI> createDocument( IRI parentDocument, Document childDocument, String slug, APIPreferences.InteractionModel interactionModel ) {
 		BoundRequestBuilder request = this.httpClient.preparePost( parentDocument.toString() );
 
-		AsyncHTTPUtils.setAcceptHeader( request );
-		AsyncHTTPUtils.setInteractionModel( request, APIPreferences.InteractionModel.CONTAINER );
+		AsyncHTTPUtils.setContentTypeHeader( request );
+		AsyncHTTPUtils.setInteractionModel( request, interactionModel );
+
+		if ( slug != null ) AsyncHTTPUtils.setSlug( request, slug );
 
 		if ( this.context.getAuthService().isAuthenticated() ) this.context.getAuthService().addAuthenticationHeaders( request );
 
@@ -124,6 +190,8 @@ public class DocumentService {
 					case OK:
 					case NO_CONTENT:
 						return null;
+					case PRECONDITION_FAILED:
+						throw new PreconditionFailedException();
 					default:
 						// TODO
 						throw new RuntimeException( "Status code: '" + response.getStatusCode() + "', was not expected" );

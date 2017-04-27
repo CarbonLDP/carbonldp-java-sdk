@@ -51,6 +51,10 @@ public final class AsyncHTTPUtils {
 		request.setHeader( "If-Match", eTag );
 	}
 
+	public static void setSlug( BoundRequestBuilder request, String slug ) {
+		request.setHeader( "Slug", slug );
+	}
+
 	public static Optional<String> getETag( Response response ) {
 		return getHeader( "ETag", response );
 	}
