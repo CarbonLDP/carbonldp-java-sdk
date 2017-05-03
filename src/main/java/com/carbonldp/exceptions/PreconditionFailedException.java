@@ -1,6 +1,7 @@
 package com.carbonldp.exceptions;
 
 import io.netty.handler.codec.http.HttpResponseStatus;
+import org.eclipse.rdf4j.model.Model;
 
 /**
  * @author MiguelAraCo
@@ -8,6 +9,10 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 public class PreconditionFailedException extends HTTPResponseException {
 
 	public PreconditionFailedException() {
-		super( HttpResponseStatus.PRECONDITION_FAILED.code() );
+		this( null );
+	}
+
+	public PreconditionFailedException( Model errorObject ) {
+		super( HttpResponseStatus.PRECONDITION_FAILED.code(), errorObject );
 	}
 }

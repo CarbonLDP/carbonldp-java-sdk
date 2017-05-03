@@ -1,20 +1,22 @@
 package com.carbonldp;
 
 import com.carbonldp.descriptions.APIPreferences;
-import com.carbonldp.exceptions.BadResponseException;
-import com.carbonldp.exceptions.PreconditionFailedException;
+import com.carbonldp.exceptions.*;
 import com.carbonldp.ldp.containers.MembersActionDescription;
 import com.carbonldp.model.PersistedDocument;
 import com.carbonldp.models.Document;
 import com.carbonldp.models.Fragment;
 import com.carbonldp.rdf.EmptyIRI;
 import com.carbonldp.utils.AsyncHTTPUtils;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import org.asynchttpclient.AsyncHttpClient;
 import org.asynchttpclient.BoundRequestBuilder;
 import org.asynchttpclient.DefaultAsyncHttpClient;
+import org.asynchttpclient.Response;
 import org.eclipse.rdf4j.model.IRI;
+import org.eclipse.rdf4j.model.Model;
+import org.eclipse.rdf4j.model.impl.AbstractModel;
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
-import org.springframework.http.HttpStatus;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -47,9 +49,9 @@ public class DocumentService {
 		return request
 			.execute().toCompletableFuture()
 			.thenApply( response -> {
-				if ( response.getStatusCode() != 200 ) {
-					// TODO
-				}
+				verifyResponseStatusCode( response,
+					HttpResponseStatus.OK.code()
+				);
 
 				return response;
 			} )
@@ -98,15 +100,11 @@ public class DocumentService {
 		// TODO: Abstract response handling
 		return request
 			.execute().toCompletableFuture()
-			.thenApply( response -> {
-				switch ( HttpStatus.valueOf( response.getStatusCode() ) ) {
-					case OK:
-					case NO_CONTENT:
-						return null;
-					default:
-						// TODO
-						throw new RuntimeException( "Status code: '" + response.getStatusCode() + "', was not expected" );
-				}
+			.thenAccept( response -> {
+				verifyResponseStatusCode( response,
+					HttpResponseStatus.OK.code(),
+					HttpResponseStatus.NO_CONTENT.code()
+				);
 			} );
 	}
 
@@ -154,14 +152,10 @@ public class DocumentService {
 		return request
 			.execute().toCompletableFuture()
 			.thenApply( response -> {
-				switch ( HttpStatus.valueOf( response.getStatusCode() ) ) {
-					case CREATED:
-					case NO_CONTENT:
-						break;
-					default:
-						// TODO
-						throw new RuntimeException( "Status code: '" + response.getStatusCode() + "', was not expected" );
-				}
+				verifyResponseStatusCode( response,
+					HttpResponseStatus.CREATED.code(),
+					HttpResponseStatus.NO_CONTENT.code()
+				);
 
 				Optional<String> location = AsyncHTTPUtils.getHeader( "Location", response );
 				if ( ! location.isPresent() ) throw new BadResponseException( "The response didn't include a location header" );
@@ -185,17 +179,11 @@ public class DocumentService {
 
 		return request
 			.execute().toCompletableFuture()
-			.thenApply( response -> {
-				switch ( HttpStatus.valueOf( response.getStatusCode() ) ) {
-					case OK:
-					case NO_CONTENT:
-						return null;
-					case PRECONDITION_FAILED:
-						throw new PreconditionFailedException();
-					default:
-						// TODO
-						throw new RuntimeException( "Status code: '" + response.getStatusCode() + "', was not expected" );
-				}
+			.thenAccept( response -> {
+				verifyResponseStatusCode( response,
+					HttpResponseStatus.OK.code(),
+					HttpResponseStatus.NO_CONTENT.code()
+				);
 			} );
 	}
 
@@ -219,14 +207,97 @@ public class DocumentService {
 		return request
 			.execute().toCompletableFuture()
 			.thenAccept( response -> {
-				switch ( HttpStatus.valueOf( response.getStatusCode() ) ) {
-					case OK:
-					case NO_CONTENT:
-						return;
-					default:
-						// TODO
-						throw new RuntimeException( "Status code: '" + response.getStatusCode() + "', was not expected" );
-				}
+				verifyResponseStatusCode( response,
+					HttpResponseStatus.OK.code(),
+					HttpResponseStatus.NO_CONTENT.code()
+				);
 			} );
+	}
+
+	private void verifyResponseStatusCode( Response response, int... expectedStatusCodes ) {
+		int code = response.getStatusCode();
+		for ( int expectedStatusCode : expectedStatusCodes ) {
+			if ( expectedStatusCode == code ) return;
+		}
+
+		if ( code >= 400 ) throwHTTPException( response );
+	}
+
+	private void throwHTTPException( Response response ) {
+		int code = response.getStatusCode();
+
+		AbstractModel errorObject = null;
+		if ( "application/ld+json".equals( response.getContentType().toLowerCase() ) ) {
+			try {
+				errorObject = JSONLDParser.parse( response.getResponseBodyAsStream() );
+			} catch ( Exception e ) {
+				// TODO: Instead of swallowing the exception, log it and continue with the execution
+			}
+		}
+
+		HttpResponseStatus statusCode = HttpResponseStatus.valueOf( code );
+
+		// TODO: Add missing error codes
+		if ( statusCode == null ) {
+			throw new RuntimeException( "Status code: '" + code + "', was not expected" );
+		} else if ( statusCode.equals( HttpResponseStatus.BAD_REQUEST ) ) {
+			throw new BadRequestException( errorObject );
+		} else if ( statusCode.equals( HttpResponseStatus.UNAUTHORIZED ) ) {
+			throw new UnauthorizedException( errorObject );
+		} else if ( statusCode.equals( HttpResponseStatus.FORBIDDEN ) ) {
+			throw new ForbiddenException( errorObject );
+		} else if ( statusCode.equals( HttpResponseStatus.NOT_FOUND ) ) {
+			throw new NotFoundException( errorObject );
+		} else if ( statusCode.equals( HttpResponseStatus.METHOD_NOT_ALLOWED ) ) {
+			throw new MethodNotAllowedException( errorObject );
+		} else if ( statusCode.equals( HttpResponseStatus.NOT_ACCEPTABLE ) ) {
+			throw new NotAcceptableException( errorObject );
+		} else if ( statusCode.equals( HttpResponseStatus.PROXY_AUTHENTICATION_REQUIRED ) ) {
+			throw new ProxyAuthenticationRequiredException( errorObject );
+		} else if ( statusCode.equals( HttpResponseStatus.REQUEST_TIMEOUT ) ) {
+			throw new RequestTimeoutException( errorObject );
+		} else if ( statusCode.equals( HttpResponseStatus.CONFLICT ) ) {
+			throw new ConflictException( errorObject );
+		} else if ( statusCode.equals( HttpResponseStatus.GONE ) ) {
+			throw new GoneException( errorObject );
+		} else if ( statusCode.equals( HttpResponseStatus.LENGTH_REQUIRED ) ) {
+			throw new LengthRequiredException( errorObject );
+		} else if ( statusCode.equals( HttpResponseStatus.PRECONDITION_FAILED ) ) {
+			throw new PreconditionFailedException( errorObject );
+		} else if ( statusCode.equals( HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE ) ) {
+			throw new RequestEntityTooLargeException( errorObject );
+		} else if ( statusCode.equals( HttpResponseStatus.REQUEST_URI_TOO_LONG ) ) {
+			throw new RequestURITooLongException( errorObject );
+		} else if ( statusCode.equals( HttpResponseStatus.UNSUPPORTED_MEDIA_TYPE ) ) {
+			throw new UnsupportedMediaTypeException( errorObject );
+		} else if ( statusCode.equals( HttpResponseStatus.REQUESTED_RANGE_NOT_SATISFIABLE ) ) {
+			throw new RequestedRangeNotSatisfiableException( errorObject );
+		} else if ( statusCode.equals( HttpResponseStatus.EXPECTATION_FAILED ) ) {
+			throw new ExpectationFailedException( errorObject );
+		} else if ( statusCode.equals( HttpResponseStatus.INTERNAL_SERVER_ERROR ) ) {
+			throw new InternalServerErrorException( errorObject );
+		} else if ( statusCode.equals( HttpResponseStatus.NOT_IMPLEMENTED ) ) {
+			throw new NotImplementedException( errorObject );
+		} else if ( statusCode.equals( HttpResponseStatus.BAD_GATEWAY ) ) {
+			throw new BadGatewayException( errorObject );
+		} else if ( statusCode.equals( HttpResponseStatus.SERVICE_UNAVAILABLE ) ) {
+			throw new ServiceUnavailableException( errorObject );
+		} else if ( statusCode.equals( HttpResponseStatus.GATEWAY_TIMEOUT ) ) {
+			throw new GatewayTimeoutException( errorObject );
+		} else if ( statusCode.equals( HttpResponseStatus.HTTP_VERSION_NOT_SUPPORTED ) ) {
+			throw new HTTPVersionNotSupportedException( errorObject );
+		} else {
+			throw new HTTPResponseException( code, errorObject ) {
+				@Override
+				public int getStatusCode() {
+					return code;
+				}
+
+				@Override
+				public Model getErrorObject() {
+					return errorObject;
+				}
+			};
+		}
 	}
 }
