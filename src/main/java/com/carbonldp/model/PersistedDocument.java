@@ -1,7 +1,7 @@
 package com.carbonldp.model;
 
 import com.carbonldp.models.Document;
-import com.carbonldp.rdf.RDFDocument;
+import com.carbonldp.models.DocumentGraph;
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.impl.AbstractModel;
 
@@ -11,8 +11,12 @@ import org.eclipse.rdf4j.model.impl.AbstractModel;
 public class PersistedDocument extends Document {
 	String eTag;
 
-	public PersistedDocument( RDFDocument rdfDocument ) {
-		super( rdfDocument );
+	public PersistedDocument( Document document ) {
+		super( document );
+	}
+
+	public PersistedDocument( DocumentGraph documentGraph ) {
+		super( documentGraph );
 	}
 
 	public PersistedDocument( IRI subject ) {
@@ -24,7 +28,7 @@ public class PersistedDocument extends Document {
 	}
 
 	public String getETag() {
-		return eTag;
+		return this.eTag;
 	}
 
 	public void setETag( String eTag ) {

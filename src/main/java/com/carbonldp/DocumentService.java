@@ -2,7 +2,7 @@ package com.carbonldp;
 
 import com.carbonldp.descriptions.APIPreferences;
 import com.carbonldp.exceptions.*;
-import com.carbonldp.ldp.containers.MembersActionDescription;
+import com.carbonldp.ldp.AddMemberAction;
 import com.carbonldp.model.PersistedDocument;
 import com.carbonldp.models.Document;
 import com.carbonldp.models.Fragment;
@@ -83,8 +83,8 @@ public class DocumentService {
 		Document addActionDocument = new Document( new EmptyIRI() );
 
 		Fragment addAction = new Fragment( SimpleValueFactory.getInstance().createBNode(), addActionDocument );
-		addAction.addType( MembersActionDescription.Resource.ADD.getIRI() );
-		addAction.add( MembersActionDescription.Property.TARGET_MEMBER.getIRI(), members );
+		addAction.addType( AddMemberAction.CLASS.getIRI() );
+		addAction.add( AddMemberAction.Property.targetMember.getIRI(), members );
 
 		BoundRequestBuilder request = this.httpClient.preparePut( document.toString() );
 

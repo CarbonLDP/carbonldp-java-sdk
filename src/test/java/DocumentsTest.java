@@ -3,7 +3,6 @@ import com.carbonldp.apps.AppContext;
 import com.carbonldp.models.Document;
 import com.carbonldp.rdf.EmptyIRI;
 import com.carbonldp.rdf.RDFMap;
-import com.carbonldp.rdf.RDFMapFactory;
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Resource;
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
@@ -50,7 +49,7 @@ public class DocumentsTest {
 		document.set( STRING_PROPERTY, "hello world!" );
 
 		Resource mapSubject = SimpleValueFactory.getInstance().createBNode();
-		RDFMap rdfMap = RDFMapFactory.getInstance().create( document.getBaseModel(), mapSubject, document.getIRI() );
+		RDFMap rdfMap = RDFMap.factory.create( mapSubject, document.getGraph() );
 		rdfMap.put( SimpleValueFactory.getInstance().createLiteral( "Hello" ), SimpleValueFactory.getInstance().createIRI( "http://example.com/1" ) );
 
 		Map<String, Resource> map = rdfMap.asMap( String.class, Resource.class );
@@ -68,7 +67,7 @@ public class DocumentsTest {
 			               Assert.assertEquals( createdDocument.getString( STRING_PROPERTY ), "hello world!" );
 
 			               Resource createdMapSubject = createdDocument.getResource( SimpleValueFactory.getInstance().createIRI( "http://example.com/ns#map" ) );
-			               RDFMap createdRDFMap = new RDFMap( createdDocument.getBaseModel(), createdMapSubject, createdDocument.getIRI() );
+			               RDFMap createdRDFMap = new RDFMap( createdMapSubject, createdDocument.getGraph() );
 			               Map<String, Resource> createdMap = createdRDFMap.asMap( String.class, Resource.class );
 			               Assert.assertEquals( createdMap.size(), 2 );
 			               Assert.assertEquals( createdMap.get( "Hello" ), SimpleValueFactory.getInstance().createIRI( "http://example.com/1" ) );
