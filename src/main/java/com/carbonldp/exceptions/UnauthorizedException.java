@@ -1,6 +1,6 @@
 package com.carbonldp.exceptions;
 
-import io.netty.handler.codec.http.HttpResponseStatus;
+import com.carbonldp.http.HTTPClient;
 import org.eclipse.rdf4j.model.Model;
 
 /**
@@ -12,6 +12,6 @@ public class UnauthorizedException extends HTTPResponseException {
 	}
 
 	public UnauthorizedException( Model errorObject ) {
-		super( HttpResponseStatus.UNAUTHORIZED.code(), errorObject );
+		super( HTTPClient.StatusCode.UNAUTHORIZED.getCode(), errorObject );
 	}
 }

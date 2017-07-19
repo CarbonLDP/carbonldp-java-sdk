@@ -1,6 +1,6 @@
 package com.carbonldp.exceptions;
 
-import io.netty.handler.codec.http.HttpResponseStatus;
+import com.carbonldp.http.HTTPClient;
 import org.eclipse.rdf4j.model.Model;
 
 /**
@@ -12,6 +12,6 @@ public class ForbiddenException extends HTTPResponseException {
 	}
 
 	public ForbiddenException( Model errorObject ) {
-		super( HttpResponseStatus.FORBIDDEN.code(), errorObject );
+		super( HTTPClient.StatusCode.FORBIDDEN.getCode(), errorObject );
 	}
 }

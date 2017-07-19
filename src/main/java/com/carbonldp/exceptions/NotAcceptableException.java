@@ -1,6 +1,6 @@
 package com.carbonldp.exceptions;
 
-import io.netty.handler.codec.http.HttpResponseStatus;
+import com.carbonldp.http.HTTPClient;
 import org.eclipse.rdf4j.model.Model;
 
 /**
@@ -12,6 +12,6 @@ public class NotAcceptableException extends HTTPResponseException {
 	}
 
 	public NotAcceptableException( Model errorObject ) {
-		super( HttpResponseStatus.NOT_ACCEPTABLE.code(), errorObject );
+		super( HTTPClient.StatusCode.NOT_ACCEPTABLE.getCode(), errorObject );
 	}
 }

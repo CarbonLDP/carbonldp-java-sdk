@@ -1,6 +1,6 @@
 package com.carbonldp.exceptions;
 
-import io.netty.handler.codec.http.HttpResponseStatus;
+import com.carbonldp.http.HTTPClient;
 import org.eclipse.rdf4j.model.Model;
 
 /**
@@ -12,6 +12,6 @@ public class MethodNotAllowedException extends HTTPResponseException {
 	}
 
 	public MethodNotAllowedException( Model errorObject ) {
-		super( HttpResponseStatus.METHOD_NOT_ALLOWED.code(), errorObject );
+		super( HTTPClient.StatusCode.METHOD_NOT_ALLOWED.getCode(), errorObject );
 	}
 }

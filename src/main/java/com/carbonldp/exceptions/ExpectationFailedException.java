@@ -1,6 +1,6 @@
 package com.carbonldp.exceptions;
 
-import io.netty.handler.codec.http.HttpResponseStatus;
+import com.carbonldp.http.HTTPClient;
 import org.eclipse.rdf4j.model.Model;
 
 /**
@@ -12,6 +12,6 @@ public class ExpectationFailedException extends HTTPResponseException {
 	}
 
 	public ExpectationFailedException( Model errorObject ) {
-		super( HttpResponseStatus.EXPECTATION_FAILED.code(), errorObject );
+		super( HTTPClient.StatusCode.EXPECTATION_FAILED.getCode(), errorObject );
 	}
 }

@@ -1,6 +1,6 @@
 package com.carbonldp.exceptions;
 
-import io.netty.handler.codec.http.HttpResponseStatus;
+import com.carbonldp.http.HTTPClient;
 import org.eclipse.rdf4j.model.Model;
 
 /**
@@ -12,6 +12,6 @@ public class RequestURITooLongException extends HTTPResponseException {
 	}
 
 	public RequestURITooLongException( Model errorObject ) {
-		super( HttpResponseStatus.REQUEST_URI_TOO_LONG.code(), errorObject );
+		super( HTTPClient.StatusCode.REQUEST_URI_TOO_LONG.getCode(), errorObject );
 	}
 }

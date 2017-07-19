@@ -63,6 +63,7 @@ public class Carbon implements Context {
 	public AppContext getAppContext( String appSlug ) {
 		if ( ! IRIUtil.isAbsolute( appSlug ) ) {
 			appSlug = appSlug.startsWith( "/" ) ? appSlug.substring( 1 ) : appSlug;
+			appSlug = appSlug.endsWith( "/" ) ? appSlug : appSlug + "/";
 		}
 
 		IRI appIRI = this.resolve( APPS_CONTAINER + appSlug );

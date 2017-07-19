@@ -1,6 +1,6 @@
 package com.carbonldp.exceptions;
 
-import io.netty.handler.codec.http.HttpResponseStatus;
+import com.carbonldp.http.HTTPClient;
 import org.eclipse.rdf4j.model.Model;
 
 /**
@@ -12,6 +12,6 @@ public class RequestEntityTooLargeException extends HTTPResponseException {
 	}
 
 	public RequestEntityTooLargeException( Model errorObject ) {
-		super( HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE.code(), errorObject );
+		super( HTTPClient.StatusCode.REQUEST_ENTITY_TOO_LARGE.getCode(), errorObject );
 	}
 }

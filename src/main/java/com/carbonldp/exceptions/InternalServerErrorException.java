@@ -1,6 +1,6 @@
 package com.carbonldp.exceptions;
 
-import io.netty.handler.codec.http.HttpResponseStatus;
+import com.carbonldp.http.HTTPClient;
 import org.eclipse.rdf4j.model.Model;
 
 /**
@@ -12,6 +12,6 @@ public class InternalServerErrorException extends HTTPResponseException {
 	}
 
 	public InternalServerErrorException( Model errorObject ) {
-		super( HttpResponseStatus.INTERNAL_SERVER_ERROR.code(), errorObject );
+		super( HTTPClient.StatusCode.INTERNAL_SERVER_ERROR.getCode(), errorObject );
 	}
 }

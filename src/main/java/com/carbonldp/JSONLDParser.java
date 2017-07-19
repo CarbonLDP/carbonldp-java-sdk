@@ -1,8 +1,6 @@
 package com.carbonldp;
 
-import com.carbonldp.utils.AsyncHTTPUtils;
-import org.asynchttpclient.BoundRequestBuilder;
-import org.asynchttpclient.Response;
+import com.carbonldp.http.HTTPClient;
 import org.eclipse.rdf4j.model.Statement;
 import org.eclipse.rdf4j.model.impl.AbstractModel;
 import org.eclipse.rdf4j.model.impl.LinkedHashModel;
@@ -10,18 +8,22 @@ import org.eclipse.rdf4j.rio.*;
 import org.eclipse.rdf4j.rio.helpers.StatementCollector;
 import org.eclipse.rdf4j.rio.jsonld.JSONLDParserFactory;
 import org.eclipse.rdf4j.rio.jsonld.JSONLDWriterFactory;
-import org.springframework.http.converter.HttpMessageNotWritableException;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
  * @author MiguelAraCo
  */
-public class JSONLDParser implements Function<Response, HTTPResult<AbstractModel>> {
+public class JSONLDParser {
 	public JSONLDParser() {
+		registerParserAndWriter();
+	}
+
+	public static void registerParserAndWriter() {
 		// Sometimes the class loader doesn't register the JSONLDParserFactory, this forces it
 		// TODO: Find out why and remove this
 		if ( ! RDFParserRegistry.getInstance().has( RDFFormat.JSONLD ) ) {
@@ -30,25 +32,6 @@ public class JSONLDParser implements Function<Response, HTTPResult<AbstractModel
 		if ( ! RDFWriterRegistry.getInstance().has( RDFFormat.JSONLD ) ) {
 			RDFWriterRegistry.getInstance().add( new JSONLDWriterFactory() );
 		}
-	}
-
-	public static void write( BoundRequestBuilder request, AbstractModel model ) {
-		AsyncHTTPUtils.setContentTypeHeader( request );
-
-		ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-
-		RDFWriter writer = Rio.createWriter( RDFFormat.JSONLD, outputStream );
-		try {
-			writer.startRDF();
-			for ( Statement statement : model ) {
-				writer.handleStatement( statement );
-			}
-			writer.endRDF();
-		} catch ( RDFHandlerException e ) {
-			throw new HttpMessageNotWritableException( "The RDF model couldn't be wrote to an RDF document.", e );
-		}
-
-		request.setBody( outputStream.toByteArray() );
 	}
 
 	public static AbstractModel parse( InputStream inputStream ) {
@@ -68,18 +51,53 @@ public class JSONLDParser implements Function<Response, HTTPResult<AbstractModel
 		return model;
 	}
 
-	@Override
-	public HTTPResult<AbstractModel> apply( Response response ) {
-		String contentType = response.getContentType();
+	public static class NativeParser implements Function<HTTPClient.HTTPResponse, HTTPResult<AbstractModel>> {
+		public NativeParser() {
+			registerParserAndWriter();
+		}
 
-		// TODO: Process mime types correctly
-		// TODO: Throw appropriate exception
-		if ( ! RDFFormat.JSONLD.getDefaultMIMEType().equals( contentType ) ) throw new RuntimeException( "The returned Content-Type: '" + contentType + "', is not supported" );
+		@Override
+		public HTTPResult<AbstractModel> apply( HTTPClient.HTTPResponse response ) {
+			String contentType = response.getHeader( "content-type" );
 
-		InputStream bodyInputStream = response.getResponseBodyAsStream();
+			// TODO: Process mime types correctly
+			// TODO: Throw appropriate exception
+			if ( ! RDFFormat.JSONLD.getDefaultMIMEType().equals( contentType ) ) throw new RuntimeException( "The returned Content-Type: '" + contentType + "', is not supported" );
 
-		AbstractModel model = parse( bodyInputStream );
+			InputStream bodyInputStream = response.getBody();
 
-		return new HTTPResult<>( response, model );
+			AbstractModel model = parse( bodyInputStream );
+
+			// Now that the body has been consumed, close the response object
+			response.close();
+
+			return new HTTPResult<>( response, model );
+		}
+	}
+
+	public static class NativeWriter implements Consumer<OutputStream> {
+		public static void setContentType( HTTPClient.HTTPRequest request ) {
+			request.header( "Content-Type", "application/ld+json" );
+		}
+
+		private final AbstractModel model;
+
+		public NativeWriter( AbstractModel model ) {
+			this.model = model;
+		}
+
+		@Override
+		public void accept( OutputStream outputStream ) {
+			RDFWriter writer = Rio.createWriter( RDFFormat.JSONLD, outputStream );
+			try {
+				writer.startRDF();
+				for ( Statement statement : model ) {
+					writer.handleStatement( statement );
+				}
+				writer.endRDF();
+			} catch ( RDFHandlerException e ) {
+				throw new RuntimeException( "The RDF model couldn't be wrote to an RDF document.", e );
+			}
+		}
 	}
 }

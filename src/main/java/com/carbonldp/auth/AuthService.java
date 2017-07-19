@@ -1,8 +1,9 @@
 package com.carbonldp.auth;
 
 import com.carbonldp.Context;
-import org.asynchttpclient.BoundRequestBuilder;
-import org.asynchttpclient.util.Base64;
+import com.carbonldp.http.HTTPClient;
+
+import java.util.Base64;
 
 /**
  * @author MiguelAraCo
@@ -28,9 +29,7 @@ public class AuthService {
 		this.password = password;
 	}
 
-	public void addAuthenticationHeaders( BoundRequestBuilder request ) {
-		if ( ! isAuthenticated() ) return;
-
-		request.setHeader( "Authorization", "Basic " + Base64.encode( ( this.username + ":" + this.password ).getBytes() ) );
+	public void addAuthenticationHeaders( HTTPClient.HTTPRequest request ) {
+		request.header( "Authorization", "Basic " + new String( Base64.getEncoder().encode( ( this.username + ":" + this.password ).getBytes() ) ) );
 	}
 }

@@ -1,6 +1,6 @@
 package com.carbonldp.exceptions;
 
-import io.netty.handler.codec.http.HttpResponseStatus;
+import com.carbonldp.http.HTTPClient;
 import org.eclipse.rdf4j.model.Model;
 
 /**
@@ -12,6 +12,6 @@ public class BadGatewayException extends HTTPResponseException {
 	}
 
 	public BadGatewayException( Model errorObject ) {
-		super( HttpResponseStatus.BAD_GATEWAY.code(), errorObject );
+		super( HTTPClient.StatusCode.BAD_GATEWAY.getCode(), errorObject );
 	}
 }

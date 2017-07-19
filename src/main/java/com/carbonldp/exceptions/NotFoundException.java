@@ -1,6 +1,6 @@
 package com.carbonldp.exceptions;
 
-import io.netty.handler.codec.http.HttpResponseStatus;
+import com.carbonldp.http.HTTPClient;
 import org.eclipse.rdf4j.model.Model;
 
 /**
@@ -12,6 +12,6 @@ public class NotFoundException extends HTTPResponseException {
 	}
 
 	public NotFoundException( Model errorObject ) {
-		super( HttpResponseStatus.NOT_FOUND.code(), errorObject );
+		super( HTTPClient.StatusCode.NOT_FOUND.getCode(), errorObject );
 	}
 }

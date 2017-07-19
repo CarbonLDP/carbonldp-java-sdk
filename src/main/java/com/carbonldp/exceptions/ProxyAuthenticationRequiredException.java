@@ -1,6 +1,6 @@
 package com.carbonldp.exceptions;
 
-import io.netty.handler.codec.http.HttpResponseStatus;
+import com.carbonldp.http.HTTPClient;
 import org.eclipse.rdf4j.model.Model;
 
 /**
@@ -12,6 +12,6 @@ public class ProxyAuthenticationRequiredException extends HTTPResponseException 
 	}
 
 	public ProxyAuthenticationRequiredException( Model errorObject ) {
-		super( HttpResponseStatus.PROXY_AUTHENTICATION_REQUIRED.code(), errorObject );
+		super( HTTPClient.StatusCode.PROXY_AUTHENTICATION_REQUIRED.getCode(), errorObject );
 	}
 }

@@ -1,6 +1,6 @@
 package com.carbonldp.exceptions;
 
-import io.netty.handler.codec.http.HttpResponseStatus;
+import com.carbonldp.http.HTTPClient;
 import org.eclipse.rdf4j.model.Model;
 
 /**
@@ -12,6 +12,6 @@ public class RequestedRangeNotSatisfiableException extends HTTPResponseException
 	}
 
 	public RequestedRangeNotSatisfiableException( Model errorObject ) {
-		super( HttpResponseStatus.REQUESTED_RANGE_NOT_SATISFIABLE.code(), errorObject );
+		super( HTTPClient.StatusCode.REQUESTED_RANGE_NOT_SATISFIABLE.getCode(), errorObject );
 	}
 }

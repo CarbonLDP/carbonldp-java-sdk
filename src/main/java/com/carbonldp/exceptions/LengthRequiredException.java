@@ -1,6 +1,6 @@
 package com.carbonldp.exceptions;
 
-import io.netty.handler.codec.http.HttpResponseStatus;
+import com.carbonldp.http.HTTPClient;
 import org.eclipse.rdf4j.model.Model;
 
 /**
@@ -12,6 +12,6 @@ public class LengthRequiredException extends HTTPResponseException {
 	}
 
 	public LengthRequiredException( Model errorObject ) {
-		super( HttpResponseStatus.LENGTH_REQUIRED.code(), errorObject );
+		super( HTTPClient.StatusCode.LENGTH_REQUIRED.getCode(), errorObject );
 	}
 }

@@ -1,6 +1,6 @@
 package com.carbonldp.exceptions;
 
-import io.netty.handler.codec.http.HttpResponseStatus;
+import com.carbonldp.http.HTTPClient;
 import org.eclipse.rdf4j.model.Model;
 
 /**
@@ -12,6 +12,6 @@ public class RequestTimeoutException extends HTTPResponseException {
 	}
 
 	public RequestTimeoutException( Model errorObject ) {
-		super( HttpResponseStatus.REQUEST_TIMEOUT.code(), errorObject );
+		super( HTTPClient.StatusCode.REQUEST_TIMEOUT.getCode(), errorObject );
 	}
 }

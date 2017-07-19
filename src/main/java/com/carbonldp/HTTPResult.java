@@ -1,15 +1,15 @@
 package com.carbonldp;
 
-import org.asynchttpclient.Response;
+import com.carbonldp.http.HTTPClient;
 
 /**
  * @author MiguelAraCo
  */
 public class HTTPResult<T> {
-	public final Response response;
+	public final HTTPClient.HTTPResponse response;
 	public final T body;
 
-	public HTTPResult( Response response, T body ) {
+	public HTTPResult( HTTPClient.HTTPResponse response, T body ) {
 		this.response = response;
 		this.body = body;
 	}
