@@ -3,11 +3,18 @@ package com.carbonldp;
 import com.carbonldp.descriptions.APIPreferences;
 import com.carbonldp.exceptions.*;
 import com.carbonldp.http.HTTPClient;
+import com.carbonldp.ldp.AddMemberAction;
 import com.carbonldp.model.PersistedDocument;
+import com.carbonldp.models.Document;
+import com.carbonldp.models.Fragment;
+import com.carbonldp.rdf.EmptyIRI;
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Model;
 import org.eclipse.rdf4j.model.impl.AbstractModel;
+import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -34,13 +41,13 @@ public class DocumentService {
 		if ( this.context.getAuthService().isAuthenticated() ) this.context.getAuthService().addAuthenticationHeaders( request );
 
 		return request
-			.send()
-			.thenApply( response ->
+			.send( response -> {
 				verifyResponseStatusCode( response,
-					200
-				)
-			)
-			.thenApply( new JSONLDParser.NativeParser() )
+					HTTPClient.StatusCode.OK.getCode()
+				);
+
+				return new JSONLD.NativeParser().apply( response );
+			} )
 			.thenApply( result -> {
 				String location = result.response.getHeader( "content-location" );
 				if ( location == null ) {
@@ -60,95 +67,95 @@ public class DocumentService {
 			} );
 	}
 
-	//	public CompletableFuture<Void> addMember( IRI document, IRI member ) {
-//		return addMembers( document, Arrays.asList( member ) );
-//	}
-//
-//	public CompletableFuture<Void> addMembers( IRI document, Collection<IRI> members ) {
-//		Document addActionDocument = new Document( new EmptyIRI() );
-//
-//		Fragment addAction = new Fragment( SimpleValueFactory.getInstance().createBNode(), addActionDocument );
-//		addAction.addType( AddMemberAction.CLASS.getIRI() );
-//		addAction.add( AddMemberAction.Property.targetMember.getIRI(), members );
-//
-//		BoundRequestBuilder request = this.httpClient.preparePut( document.toString() );
-//
-//		AsyncHTTPUtils.setContentTypeHeader( request );
-//		AsyncHTTPUtils.setAcceptHeader( request );
-//		AsyncHTTPUtils.setInteractionModel( request, APIPreferences.InteractionModel.CONTAINER );
-//
-//		if ( this.context.getAuthService().isAuthenticated() ) this.context.getAuthService().addAuthenticationHeaders( request );
-//
-//		// TODO: Use DocumentParser instead of using BaseModel
-//		JSONLDParser.write( request, addActionDocument.getBaseModel() );
-//
-//		// TODO: Abstract response handling
-//		return request
-//			.execute().toCompletableFuture()
-//			.thenAccept( response -> {
-//				verifyResponseStatusCode( response,
-//					HttpResponseStatus.OK.code(),
-//					HttpResponseStatus.NO_CONTENT.code()
-//				);
-//			} );
-//	}
-//
-//	public CompletableFuture<IRI> createChild( Document parentDocument, Document childDocument ) {
-//		return createChild( parentDocument, childDocument, null );
-//	}
-//
-//	public CompletableFuture<IRI> createChild( Document parentDocument, Document childDocument, String slug ) {
-//		return createChild( parentDocument.getIRI(), childDocument, slug );
-//	}
-//
-//	public CompletableFuture<IRI> createChild( String parentDocument, Document childDocument ) {
-//		return createChild( parentDocument, childDocument, null );
-//	}
-//
-//	public CompletableFuture<IRI> createChild( String parentDocument, Document childDocument, String slug ) {
-//		return createChild( this.context.resolve( parentDocument ), childDocument, slug );
-//	}
-//
-//	public CompletableFuture<IRI> createChild( IRI parentDocument, Document childDocument ) {
-//		return createChild( parentDocument, childDocument, null );
-//	}
-//
-//	public CompletableFuture<IRI> createChild( IRI parentDocument, Document childDocument, String slug ) {
-//		return createDocument( parentDocument, childDocument, slug, APIPreferences.InteractionModel.CONTAINER );
-//	}
-//
-//	public CompletableFuture<IRI> createAccessPoint( IRI parentDocument, Document childDocument, String slug ) {
-//		return createDocument( parentDocument, childDocument, slug, APIPreferences.InteractionModel.RDF_SOURCE );
-//	}
-//
-//	private CompletableFuture<IRI> createDocument( IRI parentDocument, Document childDocument, String slug, APIPreferences.InteractionModel interactionModel ) {
-//		BoundRequestBuilder request = this.httpClient.preparePost( parentDocument.toString() );
-//
-//		AsyncHTTPUtils.setContentTypeHeader( request );
-//		AsyncHTTPUtils.setInteractionModel( request, interactionModel );
-//
-//		if ( slug != null ) AsyncHTTPUtils.setSlug( request, slug );
-//
-//		if ( this.context.getAuthService().isAuthenticated() ) this.context.getAuthService().addAuthenticationHeaders( request );
-//
-//		// TODO: Use DocumentParser instead of using BaseModel
-//		JSONLDParser.write( request, childDocument.getBaseModel() );
-//
-//		return request
-//			.execute().toCompletableFuture()
-//			.thenApply( response -> {
-//				verifyResponseStatusCode( response,
-//					HttpResponseStatus.CREATED.code(),
-//					HttpResponseStatus.NO_CONTENT.code()
-//				);
-//
-//				Optional<String> location = AsyncHTTPUtils.getHeader( "Location", response );
-//				if ( ! location.isPresent() ) throw new BadResponseException( "The response didn't include a location header" );
-//
-//				return this.context.getValueFactory().createIRI( location.get() );
-//			} );
-//	}
-//
+	public CompletableFuture<Void> addMember( IRI document, IRI member ) {
+		return addMembers( document, Arrays.asList( member ) );
+	}
+
+	public CompletableFuture<Void> addMembers( IRI document, Collection<IRI> members ) {
+		Document addActionDocument = new Document( new EmptyIRI() );
+
+		Fragment addAction = new Fragment( SimpleValueFactory.getInstance().createBNode(), addActionDocument );
+		addAction.addType( AddMemberAction.CLASS.getIRI() );
+		addAction.add( AddMemberAction.Property.targetMember.getIRI(), members );
+
+		HTTPClient.HTTPRequestWithBody request = HTTPClient
+			.put( document.toString() )
+			.header( "Accept", "application/ld+json" )
+			.header( "Prefer", APIPreferences.InteractionModel.CONTAINER.getIRI().toString() + "; rel=interaction-model" );
+
+		JSONLD.NativeWriter.setContentType( request );
+
+		if ( this.context.getAuthService().isAuthenticated() ) this.context.getAuthService().addAuthenticationHeaders( request );
+
+		return request
+			.body( new JSONLD.NativeWriter( addActionDocument.getGraph() ) )
+			.send( response -> {
+				verifyResponseStatusCode( response,
+					HTTPClient.StatusCode.OK.getCode(),
+					HTTPClient.StatusCode.NO_CONTENT.getCode()
+				);
+
+				return null;
+			} )
+			.thenApply( this::swallowResult );
+	}
+
+	public CompletableFuture<IRI> createChild( Document parentDocument, Document childDocument ) {
+		return createChild( parentDocument, childDocument, null );
+	}
+
+	public CompletableFuture<IRI> createChild( Document parentDocument, Document childDocument, String slug ) {
+		return createChild( parentDocument.getIRI(), childDocument, slug );
+	}
+
+	public CompletableFuture<IRI> createChild( String parentDocument, Document childDocument ) {
+		return createChild( parentDocument, childDocument, null );
+	}
+
+	public CompletableFuture<IRI> createChild( String parentDocument, Document childDocument, String slug ) {
+		return createChild( this.context.resolve( parentDocument ), childDocument, slug );
+	}
+
+	public CompletableFuture<IRI> createChild( IRI parentDocument, Document childDocument ) {
+		return createChild( parentDocument, childDocument, null );
+	}
+
+	public CompletableFuture<IRI> createChild( IRI parentDocument, Document childDocument, String slug ) {
+		return createDocument( parentDocument, childDocument, slug, APIPreferences.InteractionModel.CONTAINER );
+	}
+
+	public CompletableFuture<IRI> createAccessPoint( IRI parentDocument, Document childDocument, String slug ) {
+		return createDocument( parentDocument, childDocument, slug, APIPreferences.InteractionModel.RDF_SOURCE );
+	}
+
+	private CompletableFuture<IRI> createDocument( IRI parentDocument, Document childDocument, String slug, APIPreferences.InteractionModel interactionModel ) {
+		HTTPClient.HTTPRequestWithBody request = HTTPClient
+			.post( parentDocument.stringValue() )
+			.header( "Accept", "application/ld+json" )
+			.header( "Prefer", interactionModel.getIRI().toString() + "; rel=interaction-model" );
+
+		if ( slug != null ) request.header( "Slug", slug );
+
+		if ( this.context.getAuthService().isAuthenticated() ) this.context.getAuthService().addAuthenticationHeaders( request );
+
+		JSONLD.NativeWriter.setContentType( request );
+
+		return request
+			.body( new JSONLD.NativeWriter( childDocument.getGraph() ) )
+			.send( response -> {
+				verifyResponseStatusCode( response,
+					HTTPClient.StatusCode.CREATED.getCode(),
+					HTTPClient.StatusCode.NO_CONTENT.getCode()
+				);
+
+				String location = response.getHeader( "Location" );
+				if ( location == null ) throw new BadResponseException( "The response didn't include a location header" );
+
+				return this.context.getValueFactory().createIRI( location );
+			} )
+			.thenApply( result -> result.body );
+	}
+
 	public CompletableFuture<Void> save( PersistedDocument document ) {
 		HTTPClient.HTTPRequestWithBody request = HTTPClient.put( document.getIRI().toString() );
 
@@ -160,50 +167,53 @@ public class DocumentService {
 
 		if ( this.context.getAuthService().isAuthenticated() ) this.context.getAuthService().addAuthenticationHeaders( request );
 
-		JSONLDParser.NativeWriter.setContentType( request );
+		JSONLD.NativeWriter.setContentType( request );
 
 		return request
-			.body( new JSONLDParser.NativeWriter( document.getGraph() ) )
-			.send()
-			.thenAccept( response -> {
+			.body( new JSONLD.NativeWriter( document.getGraph() ) )
+			.send( response -> {
 				verifyResponseStatusCode( response,
-					200,
-					204
+					HTTPClient.StatusCode.OK.getCode(),
+					HTTPClient.StatusCode.NO_CONTENT.getCode()
 				);
 
-				response.close();
-			} );
+				return null;
+			} )
+			.thenApply( this::swallowResult );
 	}
-//
-//	public CompletableFuture<PersistedDocument> saveAndRetrieve( PersistedDocument document ) {
-//		return this
-//			.save( document )
-//			.thenCompose( aVoid -> get( document.getIRI() ) );
-//	}
-//
-//	public CompletableFuture<Void> delete( PersistedDocument document ) {
-//		return delete( document.getIRI() );
-//	}
-//
-//	public CompletableFuture<Void> delete( IRI documentIRI ) {
-//		BoundRequestBuilder request = this.httpClient.prepareDelete( documentIRI.toString() );
-//
-//		AsyncHTTPUtils.setInteractionModel( request, APIPreferences.InteractionModel.RDF_SOURCE );
-//
-//		if ( this.context.getAuthService().isAuthenticated() ) this.context.getAuthService().addAuthenticationHeaders( request );
-//
-//		return request
-//			.execute().toCompletableFuture()
-//			.thenAccept( response -> {
-//				verifyResponseStatusCode( response,
-//					HttpResponseStatus.OK.code(),
-//					HttpResponseStatus.NO_CONTENT.code()
-//				);
-//			} );
-//	}
 
-	private HTTPClient.HTTPResponse verifyResponseStatusCode( HTTPClient.HTTPResponse response, int... expectedStatusCodes ) {
-		int code = response.getResponseCode();
+	public CompletableFuture<PersistedDocument> saveAndRetrieve( PersistedDocument document ) {
+		return this
+			.save( document )
+			.thenCompose( aVoid -> get( document.getIRI() ) );
+	}
+
+	public CompletableFuture<Void> delete( PersistedDocument document ) {
+		return delete( document.getIRI() );
+	}
+
+	public CompletableFuture<Void> delete( IRI documentIRI ) {
+		HTTPClient.HTTPRequest request = HTTPClient
+			.delete( documentIRI.stringValue() )
+			.header( "Accept", "application/ld+json" )
+			.header( "Prefer", APIPreferences.InteractionModel.RDF_SOURCE.getIRI().toString() + "; rel=interaction-model" );
+
+		if ( this.context.getAuthService().isAuthenticated() ) this.context.getAuthService().addAuthenticationHeaders( request );
+
+		return request
+			.send( response -> {
+				verifyResponseStatusCode( response,
+					HTTPClient.StatusCode.OK.getCode(),
+					HTTPClient.StatusCode.NO_CONTENT.getCode()
+				);
+
+				return null;
+			} )
+			.thenApply( this::swallowResult );
+	}
+
+	private HTTPClient.ClosedHTTPResponse verifyResponseStatusCode( HTTPClient.OpenHTTPResponse response, int... expectedStatusCodes ) {
+		int code = response.getStatusCode();
 		for ( int expectedStatusCode : expectedStatusCodes ) {
 			if ( expectedStatusCode == code ) return response;
 		}
@@ -213,19 +223,23 @@ public class DocumentService {
 		return response;
 	}
 
-	private void throwHTTPException( HTTPClient.HTTPResponse response ) {
-		int code = response.getResponseCode();
+	private void throwHTTPException( HTTPClient.OpenHTTPResponse response ) {
+		int code = response.getStatusCode();
 
 		AbstractModel errorObject = null;
 		if ( "application/ld+json".equals( response.getHeader( "content-type" ) ) ) {
 			try {
-				errorObject = JSONLDParser.parse( response.getBody() );
+				errorObject = JSONLD.parse( response.getBody() );
 			} catch ( Exception e ) {
 				// TODO: Instead of swallowing the exception, log it and continue with the execution
 			}
 		}
 
 		throwHTTPException( code, errorObject );
+	}
+
+	private <T> Void swallowResult( T result ) {
+		return null;
 	}
 
 	private void throwHTTPException( int code, AbstractModel errorObject ) {

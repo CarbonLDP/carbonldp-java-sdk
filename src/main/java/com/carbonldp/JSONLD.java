@@ -18,8 +18,8 @@ import java.util.function.Function;
 /**
  * @author MiguelAraCo
  */
-public class JSONLDParser {
-	public JSONLDParser() {
+public class JSONLD {
+	public JSONLD() {
 		registerParserAndWriter();
 	}
 
@@ -51,13 +51,13 @@ public class JSONLDParser {
 		return model;
 	}
 
-	public static class NativeParser implements Function<HTTPClient.HTTPResponse, HTTPResult<AbstractModel>> {
+	public static class NativeParser implements Function<HTTPClient.OpenHTTPResponse, AbstractModel> {
 		public NativeParser() {
 			registerParserAndWriter();
 		}
 
 		@Override
-		public HTTPResult<AbstractModel> apply( HTTPClient.HTTPResponse response ) {
+		public AbstractModel apply( HTTPClient.OpenHTTPResponse response ) {
 			String contentType = response.getHeader( "content-type" );
 
 			// TODO: Process mime types correctly
@@ -66,12 +66,7 @@ public class JSONLDParser {
 
 			InputStream bodyInputStream = response.getBody();
 
-			AbstractModel model = parse( bodyInputStream );
-
-			// Now that the body has been consumed, close the response object
-			response.close();
-
-			return new HTTPResult<>( response, model );
+			return parse( bodyInputStream );
 		}
 	}
 

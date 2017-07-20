@@ -1,5 +1,7 @@
 package com.carbonldp.http;
 
+import com.carbonldp.HTTPResult;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -14,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * @author MiguelAraCo
@@ -102,49 +105,55 @@ public class HTTPClient {
 			return this;
 		}
 
-		public CompletableFuture<HTTPResponse> send() {
-			return send( this.retries, 0 );
+		public <T> CompletableFuture<HTTPResult<T>> send( Function<OpenHTTPResponse, T> responseHandler ) {
+			return send( responseHandler, this.retries, 0 );
 		}
 
 		// TODO: Handle recoverable HTTPExceptions
 		@SuppressWarnings( "unchecked" )
-		private CompletableFuture<HTTPResponse> send( int retries, int currentRetries ) {
+		private <T> CompletableFuture<HTTPResult<T>> send( Function<OpenHTTPResponse, T> responseHandler, int retries, int currentRetries ) {
 			HttpURLConnection connection = createHttpURLConnection();
 
 			return CompletableFuture
 				.supplyAsync( () -> {
-					int statusCode;
 					try {
 						connection.connect();
-						statusCode = connection.getResponseCode();
 					} catch ( IOException e ) {
 						throw new UncheckedIOException( e );
 					}
 
-					// TODO: Retry on specific status codes
+					try {
+						OpenHTTPResponse response = new OpenHTTPResponse( connection );
 
-					// Casting the response to an object so exceptionally can return CompletableFutures or Throwables
-					return (Object) new HTTPResponse( connection );
+						// TODO: Retry on specific status codes
+
+						T result = responseHandler.apply( response );
+
+						// Casting the response to an object so exceptionally can return CompletableFutures or Throwables
+						return (Object) new HTTPResult<>( response, result );
+					} finally {
+						connection.disconnect();
+					}
 				} )
 				.exceptionally( throwable -> {
 					if ( ( throwable instanceof UncheckedIOException ) ) {
 						if ( currentRetries == retries ) return throwable;
-						return this.send( retries, currentRetries + 1 );
+						return this.send( responseHandler, retries, currentRetries + 1 );
 					}
 
 					return throwable;
 				} )
 				.thenCompose( result -> {
-					if ( result instanceof HTTPResponse ) {
-						return CompletableFuture.completedFuture( (HTTPResponse) result );
+					if ( result instanceof HTTPResult ) {
+						return CompletableFuture.completedFuture( (HTTPResult) result );
 					} else if ( result instanceof CompletableFuture ) {
-						return (CompletableFuture<HTTPResponse>) result;
+						return (CompletableFuture<HTTPResult<T>>) result;
 					} else if ( result instanceof RuntimeException ) {
-						CompletableFuture<HTTPResponse> future = new CompletableFuture<>();
+						CompletableFuture<HTTPResult<T>> future = new CompletableFuture<>();
 						future.completeExceptionally( (Throwable) result );
 						return future;
 					} else {
-						CompletableFuture<HTTPResponse> future = new CompletableFuture<>();
+						CompletableFuture<HTTPResult<T>> future = new CompletableFuture<>();
 						future.completeExceptionally( new IllegalStateException() );
 						return future;
 					}
@@ -214,23 +223,53 @@ public class HTTPClient {
 
 			return this;
 		}
-	}
 
-	public static class HTTPResponse {
-		private final HttpURLConnection connection;
-		private final Map<String, List<String>> headers;
-
-		private HTTPResponse( HttpURLConnection connection ) {
-			this.connection = connection;
-			this.headers = cleanHeaderKeys( this.connection.getHeaderFields() );
+		@Override
+		public HTTPRequestWithBody header( String header, String value ) {
+			super.header( header, value );
+			return this;
 		}
 
-		public int getResponseCode() {
+		@Override
+		public HTTPRequestWithBody header( String header, String value, boolean resetValues ) {
+			super.header( header, value, resetValues );
+			return this;
+		}
+
+		@Override
+		public HTTPRequestWithBody connectTimeout( int timeout ) {
+			super.connectTimeout( timeout );
+			return this;
+		}
+
+		@Override
+		public HTTPRequestWithBody readTimeout( int timeout ) {
+			super.readTimeout( timeout );
+			return this;
+		}
+
+		@Override
+		public HTTPRequestWithBody retries( int retries ) {
+			super.retries( retries );
+			return this;
+		}
+	}
+
+	public static class ClosedHTTPResponse {
+		private final int statusCode;
+		private final Map<String, List<String>> headers;
+
+		private ClosedHTTPResponse( HttpURLConnection connection ) {
 			try {
-				return this.connection.getResponseCode();
+				this.statusCode = connection.getResponseCode();
 			} catch ( IOException e ) {
 				throw new UncheckedIOException( e );
 			}
+			this.headers = cleanHeaderKeys( connection.getHeaderFields() );
+		}
+
+		public int getStatusCode() {
+			return this.statusCode;
 		}
 
 		public String getHeader( String header ) {
@@ -245,18 +284,6 @@ public class HTTPClient {
 			return this.headers.get( header );
 		}
 
-		public InputStream getBody() {
-			try {
-				return this.connection.getInputStream();
-			} catch ( IOException e ) {
-				throw new UncheckedIOException( e );
-			}
-		}
-
-		public void close() {
-			this.connection.disconnect();
-		}
-
 		private Map<String, List<String>> cleanHeaderKeys( Map<String, List<String>> headers ) {
 			Map<String, List<String>> cleanedHeaders = new HashMap<>();
 			for ( Map.Entry<String, List<String>> headerEntry : headers.entrySet() ) {
@@ -268,6 +295,23 @@ public class HTTPClient {
 				cleanedHeaders.put( key.toLowerCase(), value );
 			}
 			return cleanedHeaders;
+		}
+	}
+
+	public static class OpenHTTPResponse extends ClosedHTTPResponse {
+		private final HttpURLConnection connection;
+
+		private OpenHTTPResponse( HttpURLConnection connection ) {
+			super( connection );
+			this.connection = connection;
+		}
+
+		public InputStream getBody() {
+			try {
+				return this.connection.getInputStream();
+			} catch ( IOException e ) {
+				throw new UncheckedIOException( e );
+			}
 		}
 	}
 
@@ -288,6 +332,11 @@ public class HTTPClient {
 	}
 
 	public enum StatusCode {
+		// 2xx
+		OK( 200 ),
+		CREATED( 201 ),
+		NO_CONTENT( 204 ),
+
 		// 4xx
 		BAD_REQUEST( 400 ),
 		UNAUTHORIZED( 401 ),
