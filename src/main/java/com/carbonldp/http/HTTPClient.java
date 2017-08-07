@@ -1,15 +1,11 @@
 package com.carbonldp.http;
 
 import com.carbonldp.HTTPResult;
+import org.apache.commons.codec.Charsets;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.UncheckedIOException;
-import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.ProtocolException;
-import java.net.URL;
+import java.io.*;
+import java.net.*;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -26,8 +22,8 @@ public class HTTPClient {
 		return new HTTPRequest( "GET", url );
 	}
 
-	public static HTTPRequestWithBody post( String url ) {
-		return new HTTPRequestWithBody( "POST", url );
+	public static HTTPPostRequest post( String url ) {
+		return new HTTPPostRequest( "POST", url );
 	}
 
 	public static HTTPRequestWithBody put( String url ) {
@@ -47,14 +43,14 @@ public class HTTPClient {
 	public static class HTTPRequest {
 		protected Consumer<OutputStream> bodyWriter;
 
-		private final String method;
-		private final URL url;
-		private final Map<String, List<String>> headers = new HashMap<>();
-		private Integer connectTimeout = null;
-		private Integer readTimeout = null;
-		private int retries;
+		protected String method;
+		protected URL url;
+		protected Map<String, List<String>> headers = new HashMap<>();
+		protected Integer connectTimeout = null;
+		protected Integer readTimeout = null;
+		protected int retries;
 
-		private HTTPRequest( String method, String url ) {
+		protected HTTPRequest( String method, String url ) {
 			this.method = method;
 
 			try {
@@ -66,6 +62,9 @@ public class HTTPClient {
 			String protocol = this.url.getProtocol();
 			if ( ! "http".equals( protocol ) && ! "https".equals( protocol ) ) throw new IllegalArgumentException( "The protocol '" + protocol + "' of the provided URL is not supported" );
 		}
+
+		// Used while cloning requests
+		protected HTTPRequest() {}
 
 		public HTTPRequest header( String header, String value ) {
 			return header( header, value, false );
@@ -107,6 +106,10 @@ public class HTTPClient {
 
 		public <T> CompletableFuture<HTTPResult<T>> send( Function<OpenHTTPResponse, T> responseHandler ) {
 			return send( responseHandler, this.retries, 0 );
+		}
+
+		protected void beforeWritingHeaders( HttpURLConnection connection ) {
+			// Nothing to do, but it can be overridden by sub-classes
 		}
 
 		// TODO: Handle recoverable HTTPExceptions
@@ -178,6 +181,8 @@ public class HTTPClient {
 				throw new IllegalStateException( e );
 			}
 
+			beforeWritingHeaders( connection );
+
 			setHeaders( connection );
 
 			if ( this.connectTimeout != null ) connection.setConnectTimeout( this.connectTimeout );
@@ -214,9 +219,11 @@ public class HTTPClient {
 	}
 
 	public static class HTTPRequestWithBody extends HTTPRequest {
-		private HTTPRequestWithBody( String method, String url ) {
+		protected HTTPRequestWithBody( String method, String url ) {
 			super( method, url );
 		}
+
+		protected HTTPRequestWithBody() {}
 
 		public HTTPRequestWithBody body( Consumer<OutputStream> bodyWriter ) {
 			this.bodyWriter = bodyWriter;
@@ -252,6 +259,194 @@ public class HTTPClient {
 		public HTTPRequestWithBody retries( int retries ) {
 			super.retries( retries );
 			return this;
+		}
+	}
+
+	public static class HTTPPostRequest extends HTTPRequestWithBody {
+		protected HTTPPostRequest( String method, String url ) {
+			super( method, url );
+		}
+
+		public HTTPMultipartRequest multipart() {
+			HTTPMultipartRequest request = new HTTPMultipartRequest();
+			request.method = this.method;
+			request.url = this.url;
+			request.headers = this.headers;
+			request.connectTimeout = this.connectTimeout;
+			request.readTimeout = this.readTimeout;
+			request.retries = this.retries;
+			return request;
+		}
+
+		@Override
+		public HTTPPostRequest body( Consumer<OutputStream> bodyWriter ) {
+			super.body( bodyWriter );
+			return this;
+		}
+
+		@Override
+		public HTTPPostRequest header( String header, String value ) {
+			super.header( header, value );
+			return this;
+		}
+
+		@Override
+		public HTTPPostRequest header( String header, String value, boolean resetValues ) {
+			super.header( header, value, resetValues );
+			return this;
+		}
+
+		@Override
+		public HTTPPostRequest connectTimeout( int timeout ) {
+			super.connectTimeout( timeout );
+			return this;
+		}
+
+		@Override
+		public HTTPPostRequest readTimeout( int timeout ) {
+			super.readTimeout( timeout );
+			return this;
+		}
+
+		@Override
+		public HTTPPostRequest retries( int retries ) {
+			super.retries( retries );
+			return this;
+		}
+	}
+
+	public static class FileField {
+		protected String fieldName;
+		protected String fileName;
+		protected String fileContentType;
+		protected Consumer<OutputStream> fileWriter;
+	}
+
+	public static class HTTPMultipartRequest extends HTTPRequest {
+		private static final String LINE_FEED = "\r\n";
+
+		protected Charset charset = Charsets.UTF_8;
+		protected String boundary;
+		protected Map<String, String> fields = new HashMap<>();
+		protected List<FileField> fileFields = new ArrayList<>();
+		protected int chunkSize = 1024 * 1024 * 10;
+
+		protected HTTPMultipartRequest( String method, String url ) {
+			super( method, url );
+			this.bodyWriter = this::writeMultipartBody;
+		}
+
+		protected HTTPMultipartRequest() {
+			this.bodyWriter = this::writeMultipartBody;
+		}
+
+		public HTTPMultipartRequest field( String name, String value ) {
+			this.fields.put( name, value );
+			return this;
+		}
+
+		public HTTPMultipartRequest file( String field, String name, Consumer<OutputStream> writer ) {
+			String contentType = URLConnection.guessContentTypeFromName( name );
+			return file( field, name, writer, contentType );
+		}
+
+		public HTTPMultipartRequest file( String field, String name, Consumer<OutputStream> writer, String contentType ) {
+			FileField fileField = new FileField();
+			fileField.fieldName = field;
+			fileField.fileName = name;
+			fileField.fileContentType = contentType;
+			fileField.fileWriter = writer;
+
+			this.fileFields.add( fileField );
+
+			return this;
+		}
+
+		public HTTPMultipartRequest chunkSize( int chunkSize ) {
+			this.chunkSize = chunkSize;
+			return this;
+		}
+
+		@Override
+		protected void beforeWritingHeaders( HttpURLConnection connection ) {
+			super.beforeWritingHeaders( connection );
+
+			// HttpURLConnection uses a byte array to store the content of the request's body
+			// before sending it. If the file is big enough, it can cause an OutOfMemoryException.
+			// Calling this method sets the connection to streaming mode instead, meaning the connection
+			// will send data after the threshold is reached (instead of pulling everything into
+			// memory.
+			// TODO: This is not supported by all servers, switch it to something more widely supported
+			if ( this.fileFields.size() > 0 ) connection.setChunkedStreamingMode( this.chunkSize );
+
+			setBoundary();
+		}
+
+		protected void setBoundary() {
+			this.boundary = "-===" + System.currentTimeMillis() + "===-";
+			this.header( "Content-Type", "multipart/form-data; boundary=" + this.boundary, true );
+		}
+
+		private void writeMultipartBody( OutputStream outputStream ) {
+			PrintWriter writer = new PrintWriter( new OutputStreamWriter( outputStream, this.charset ), true );
+
+			writeFields( writer );
+			writeFiles( writer, outputStream );
+			finishBody( writer );
+		}
+
+		private void writeFields( PrintWriter writer ) {
+			for ( Map.Entry<String, String> field : this.fields.entrySet() ) {
+				writeField( field.getKey(), field.getValue(), writer );
+			}
+		}
+
+		private void writeField( String name, String value, PrintWriter writer ) {
+			writer
+				.append( "--" ).append( boundary ).append( LINE_FEED )
+				.append( "Content-Disposition: form-data; name=\"" ).append( name ).append( "\"" ).append( LINE_FEED )
+				.append( "Content-Type: text/plain; charset=" ).append( this.charset.toString() ).append( LINE_FEED )
+				.append( LINE_FEED )
+				.append( value ).append( LINE_FEED );
+
+			writer.flush();
+		}
+
+		private void writeFiles( PrintWriter writer, OutputStream bodyOutputStream ) {
+			for ( FileField fileField : this.fileFields ) {
+				writeFile( fileField, writer, bodyOutputStream );
+			}
+		}
+
+		private void writeFile( FileField fileField, PrintWriter writer, OutputStream bodyOutputStream ) {
+			writer
+				.append( "--" ).append( boundary ).append( LINE_FEED )
+				.append( "Content-Disposition: form-data; name=\"" ).append( fileField.fieldName ).append( "\"; filename=\"" ).append( fileField.fileName ).append( "\"" ).append( LINE_FEED )
+				.append( "Content-Type: " ).append( fileField.fileContentType ).append( LINE_FEED )
+				.append( "Content-Transfer-Encoding: binary" ).append( LINE_FEED )
+				.append( LINE_FEED );
+
+			writer.flush();
+
+			fileField.fileWriter.accept( bodyOutputStream );
+
+			try {
+				bodyOutputStream.flush();
+			} catch ( IOException e ) {
+				throw new UncheckedIOException( "Couldn't flush request's body's output stream after writing file", e );
+			}
+
+			writer.append( LINE_FEED );
+			writer.flush();
+		}
+
+		private void finishBody( PrintWriter writer ) {
+			writer
+				.append( LINE_FEED ).flush();
+			writer
+				.append( "--" ).append( boundary ).append( "--" ).append( LINE_FEED );
+
+			writer.close();
 		}
 	}
 
